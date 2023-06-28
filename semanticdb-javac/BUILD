@@ -33,6 +33,13 @@ java_library(
 	name = "semanticdb-javac",
 	srcs = glob(["src/main/java/**/*.java"]),
 	resources = ["src/main/resources/META-INF/services/com.sun.source.util.Plugin"],
+	javacopts = [
+          "--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED",
+          "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+          "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+          "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+          "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+        ],
 	deps = [
                 "//semanticdb-java/src/main/protobuf:semanticdb_java_proto",
 		"//semanticdb-java",
