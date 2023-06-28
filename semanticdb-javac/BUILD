@@ -36,6 +36,6 @@ java_library(
 	deps = [
                 "//semanticdb-java/src/main/protobuf:semanticdb_java_proto",
 		"//semanticdb-java",
-		":javac-import",
+		# ":javac-import",
 	],
 )
