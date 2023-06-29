@@ -27,7 +27,8 @@ public class BazelOptions {
     System.out.println(
         "  --sourceroot <path> the absolute path to the root directory of the Bazel codebase");
     System.out.println(
-        "                      TIP: use --sourceroot \"$PWD\" to pass the current working directory");
+        "                      TIP: use --sourceroot \"$PWD\" to pass the current working"
+            + " directory");
     System.out.println("  --output <path> the absolute path to the file that should be generated");
     System.out.println("  --parallel whether to process files in parallel");
     System.out.println(
@@ -95,7 +96,9 @@ public class BazelOptions {
     if (options.sourceroot == null) {
       if (args.length == 0) {
         errors.add(
-            "missing required flag --sourceroot <path>. To fix this problem, pass in the `--sourceroot` flag like this: bazel run @scip_java//scip-semanticdb:bazel -- --sourceroot \"$PWD\"");
+            "missing required flag --sourceroot <path>. To fix this problem, pass in the"
+                + " `--sourceroot` flag like this: bazel run @scip_java//scip-semanticdb:bazel --"
+                + " --sourceroot \"$PWD\"");
       } else {
         errors.add("missing required flag --sourceroot <path>");
       }
@@ -133,7 +136,7 @@ public class BazelOptions {
   }
 
   public static void inferTargetrootsAndPackages(BazelOptions options) throws IOException {
-    PathMatcher paramsPattern = FileSystems.getDefault().getPathMatcher("glob:**-0.params");
+    PathMatcher jarPattern = FileSystems.getDefault().getPathMatcher("glob:**.jar");
     Path bazelBin = options.sourceroot.resolve("bazel-bin");
     if (!Files.exists(bazelBin)) {
       return;
@@ -152,8 +155,8 @@ public class BazelOptions {
           @Override
           public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
               throws IOException {
-            if (paramsPattern.matches(file)) {
-              visitParamsFile(file, options);
+            if (jarPattern.matches(file)) {
+              visitJarFile(file, options);
             }
             return super.visitFile(file, attrs);
           }
@@ -164,17 +167,13 @@ public class BazelOptions {
     return path.isAbsolute() ? path : sourceroot.resolve(path);
   }
 
-  public static void visitParamsFile(Path paramsFile, BazelOptions options) throws IOException {
-    List<String> lines = Files.readAllLines(paramsFile);
-    Optional<String> semanticdbPlugin =
-        lines.stream().filter(line -> line.startsWith("-Xplugin:semanticdb")).findFirst();
-    if (semanticdbPlugin.isPresent()) {
-      String jarFileName = paramsFile.getFileName().toString();
-      jarFileName = jarFileName.substring(0, jarFileName.length() - "-0.param".length() - 1);
-      Path jarFile = paramsFile.resolveSibling(jarFileName);
-      if (Files.isRegularFile(jarFile)) {
-        options.targetroots.add(jarFile);
-      }
+  public static void visitJarFile(Path jarFile, BazelOptions options) throws IOException {
+    if (Files.isRegularFile(jarFile)
+        && !jarFile.toString().contains("runfiles")
+        && !jarFile.toString().contains("bazel-bin/external")
+        && !jarFile.toString().contains(".hjar.jar")
+        && !jarFile.toString().contains("-native-header.jar")) {
+      options.targetroots.add(jarFile);
     }
   }
 }
