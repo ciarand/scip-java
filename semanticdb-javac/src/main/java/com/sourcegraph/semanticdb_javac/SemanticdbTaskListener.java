@@ -5,14 +5,14 @@ import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.source.util.Trees;
 import com.sun.tools.javac.model.JavacTypes;
-
-import javax.tools.Diagnostic;
-import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import javax.tools.Diagnostic;
+import javax.tools.JavaFileObject;
 
 /**
  * Callback hook that generates SemanticDB when the compiler has completed typechecking a Java
@@ -112,7 +112,7 @@ public final class SemanticdbTaskListener implements TaskListener {
         throw new IllegalArgumentException("unsupported URI: " + uri);
       }
     } else if (options.uriScheme == UriScheme.BAZEL) {
-      String toString = file.toString();
+      String toString = file.toString().replace(":", "/");
       // This solution is hacky, and it would be very nice to use a dedicated API instead.
       // The Bazel Java compiler constructs `SimpleFileObject/DirectoryFileObject` with a
       // "user-friendly" name that points to the original source file and an underlying/actual
@@ -123,7 +123,11 @@ public final class SemanticdbTaskListener implements TaskListener {
           new String[] {"SimpleFileObject[", "DirectoryFileObject["};
       for (String pattern : knownBazelToStringPatterns) {
         if (toString.startsWith(pattern) && toString.endsWith("]")) {
-          return Paths.get(toString.substring(pattern.length(), toString.length() - 1));
+          Path p = Paths.get(toString.substring(pattern.length(), toString.length() - 1));
+          if (!p.isAbsolute()) {
+            return options.sourceroot.resolve(p);
+          }
+          return p;
         }
       }
       throw new IllegalArgumentException("unsupported source file: " + toString);
@@ -150,7 +154,7 @@ public final class SemanticdbTaskListener implements TaskListener {
     // example above, we compare "Hello.java", then "example", then "com", and
     // when we reach "repo" != "tmp" then we guess that "/home/repo" is the
     // sourceroot. This logic is brittle  and it would be nice to use more
-    // dedicated APIs, but Bazel actively makes an effort to  sandbox
+    // dedicated APIs, but Bazel actively makes an effort to sandbox
     // compilation and hide access to the original workspace, which is why we
     // resort to solutions like this.
     int relativePathDepth = 0;
@@ -171,10 +175,7 @@ public final class SemanticdbTaskListener implements TaskListener {
   }
 
   private Result<Path, String> semanticdbOutputPath(SemanticdbJavacOptions options, TaskEvent e) {
-    Path absolutePath = Paths.get(absolutePathFromUri(options, e.getSourceFile()).toString().replace(":", "/"));
-    if (!absolutePath.isAbsolute()) {
-      absolutePath = options.sourceroot.resolve(absolutePath);
-    }
+    Path absolutePath = absolutePathFromUri(options, e.getSourceFile());
     if (absolutePath.startsWith(options.sourceroot)) {
       Path relativePath = options.sourceroot.relativize(absolutePath);
       String filename = relativePath.getFileName().toString() + ".semanticdb";
@@ -189,8 +190,8 @@ public final class SemanticdbTaskListener implements TaskListener {
     } else {
       return Result.error(
           String.format(
-              "sourceroot '%s does not contain path '%s'. To fix this problem, update the -sourceroot flag to "
-                  + "be a parent directory of this source file.",
+              "sourceroot '%s does not contain path '%s'. To fix this problem, update the"
+                  + " -sourceroot flag to be a parent directory of this source file.",
               options.sourceroot, absolutePath));
     }
   }
